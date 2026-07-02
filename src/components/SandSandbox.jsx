@@ -65,7 +65,11 @@ export default function SandSandbox() {
 
     // Traverse each grid from bottom row to top row
     for (let y = height - 1; y >= 0; y--) {
-      for (let x = 0; x < width; x++) {
+      // Randomize horizontal traversal to eliminate directional bias
+      const leftToRight = Math.random() > 0.5;
+
+      for (let i = 0; i < width; i++) {
+        const x = leftToRight ? i : (width - 1 - i); // Reverse order if right-to-left
         const idx = y * width + x;
         const type = currentGrid[idx];
 
@@ -139,10 +143,6 @@ export default function SandSandbox() {
 
         // Water physics
         else if (type === 2) {
-          // If a sand displacement calculation from a previous loop pass already updated
-          // this slot position, respect the change and stop further liquid movement.
-          if (nextGrid[idx] !== 0) continue;
-
           const below = (y + 1) * width + x;
           const bottomLeft = (y + 1) * width + (x - 1);
           const bottomRight = (y + 1) * width + (x + 1);
@@ -201,7 +201,7 @@ export default function SandSandbox() {
 
           if (fluidMoved) continue;
 
-          // 3. Lateral Equalization (Liquid spreading completely flat across horizons)
+          // 3. Lateral Equalization
           if (flowLeftFirst) {
             if (x - 1 >= 0 && currentGrid[left] === 0 && nextGrid[left] === 0) {
               nextGrid[left] = 2;
@@ -234,8 +234,10 @@ export default function SandSandbox() {
 
           if (fluidMoved) continue;
 
-          // 4. Stagnant: Pool in place
-          nextGrid[idx] = 2;
+          // 4. Stagnant: Safety fallback pool (Respects upward water injection from sand displacement)
+          if (nextGrid[idx] === 0) {
+            nextGrid[idx] = 2;
+          }
         }
       }
     }
