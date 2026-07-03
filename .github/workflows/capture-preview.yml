@@ -34,7 +34,7 @@ jobs:
             
             await page.setViewportSize({ width: 1000, height: 1300 });
             
-            await page.goto('https://christianbihasa.github.io/extreme-wordle', {
+            await page.goto('https://christianbihasa.github.io/sand-sandbox', {
               waitUntil: 'networkidle'
             });
             
