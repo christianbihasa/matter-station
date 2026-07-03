@@ -331,7 +331,7 @@ export class SandEngine {
           g = 22,
           b = 37;
 
-        // Apply Custom Visual Texturing Variations (Option 3)
+        // Apply Custom Visual Texturing Variations
         if (cellType === 1) {
           // Yellow Sand Grain Modifications
           if (variant === 0) {
