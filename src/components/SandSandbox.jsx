@@ -5,7 +5,7 @@ import SandControls from "./SandControls";
 export default function SandSandbox() {
   const canvasRef = useRef(null);
   const [activeElement, setActiveElement] = useState(1);
-  const [eraserSize, setEraserSize] = useState(4); // Radial brush boundary tracking
+  const [eraserSize, setEraserSize] = useState(4);
   const engineRef = useRef(null);
   const inputRef = useRef({ isDrawing: false, lastX: null, lastY: null });
 
@@ -13,7 +13,6 @@ export default function SandSandbox() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
-    // Core Engine Matrix Initialization (Width, Height, Cell Render Size)
     const engine = new SandEngine(200, 150, 4);
     engineRef.current = engine;
 
@@ -53,7 +52,6 @@ export default function SandSandbox() {
 
     while (true) {
       if (element === 0) {
-        // Multi-pixel radial masking array offset for Eraser tool
         for (let row = -radius; row <= radius; row++) {
           for (let col = -radius; col <= radius; col++) {
             if (col * col + row * row <= radius * radius) {
@@ -62,7 +60,6 @@ export default function SandSandbox() {
           }
         }
       } else {
-        // Standard single pixel injection for elemental assets
         engineRef.current.setCell(x0, y0, element);
       }
 
@@ -112,7 +109,7 @@ export default function SandSandbox() {
   return (
     <div className="flex flex-col items-center justify-center p-6 min-h-screen bg-arcade-bg text-white font-mono w-full selection:bg-emerald-500/30">
       {/* Visual Identity Header Block */}
-      <div className="mb-6 text-center select-none animate-fade-in">
+      <div className="mb-6 text-center select-none">
         <h1 className="text-2xl tracking-[0.25em] text-emerald-400 font-black mb-1.5 drop-shadow-[0_2px_8px_rgba(52,211,153,0.2)]">
           NEXUS ELEMENTAL ENGINE
         </h1>
@@ -122,8 +119,8 @@ export default function SandSandbox() {
         </p>
       </div>
 
-      {/* Main Structural Layout Container (Locked to Center Alignment) */}
-      <div className="flex flex-col md:flex-row gap-6 items-center md:items-start justify-center w-full max-w-4xl mx-auto bg-gray-950/20 p-4 rounded-xl border border-gray-900/40 backdrop-blur-sm shadow-inner">
+      {/* Main Structural Layout Container (Locked to Center, Elements aligned via md:items-stretch) */}
+      <div className="flex flex-col md:flex-row gap-6 items-center md:items-stretch justify-center w-full max-w-4xl mx-auto bg-gray-950/20 p-4 rounded-xl border border-gray-900/40 backdrop-blur-sm shadow-inner">
         {/* Left Side Control Tower Dashboard */}
         <SandControls
           activeElement={activeElement}
@@ -146,7 +143,7 @@ export default function SandSandbox() {
             onTouchStart={handleStart}
             onTouchMove={handleMove}
             onTouchEnd={handleEnd}
-            className="w-full aspect-[4/3] bg-gray-950 rounded-lg border border-gray-800/80 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)] cursor-crosshair touch-none transition-colors duration-300 focus:outline-none"
+            className="w-full aspect-[4/3] bg-gray-950 rounded-lg border border-gray-800/80 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)] cursor-crosshair touch-none focus:outline-none"
           />
         </div>
       </div>
