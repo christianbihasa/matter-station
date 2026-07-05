@@ -18,28 +18,29 @@ export default function SandSandbox() {
     const ctx = canvas.getContext("2d");
     let animationFrameId;
 
-    // Handles adapting internal array resolutions to match layout viewport metrics
     const resizeCanvas = () => {
       const rect = container.getBoundingClientRect();
-
-      // Update canvas viewport configuration to match native display bounds
       canvas.width = rect.width;
       canvas.height = rect.height;
 
-      // Calculate grid arrays dynamically based on a uniform 4px cell scale factor
       const cellScale = 4;
       const engineWidth = Math.floor(canvas.width / cellScale);
       const engineHeight = Math.floor(canvas.height / cellScale);
 
-      // Re-instantiate physics matrix to fill the new layout configuration bounds
-      const engine = new SandEngine(engineWidth, engineHeight, cellScale);
-      engineRef.current = engine;
+      // NATIVE HOOK REFACTOR: If engine exists, call .resize() to retain your drawings!
+      if (engineRef.current) {
+        engineRef.current.resize(engineWidth, engineHeight);
+      } else {
+        engineRef.current = new SandEngine(
+          engineWidth,
+          engineHeight,
+          cellScale,
+        );
+      }
     };
 
-    // Trigger initial calculation
     resizeCanvas();
 
-    // Attach resize observer to track fluid container shifts dynamically
     const resizeObserver = new ResizeObserver(() => {
       resizeCanvas();
     });

@@ -20,7 +20,37 @@ export class SandEngine {
       5: { name: "ACID", state: "LIQUID", density: 25, flammable: false },
       6: { name: "FIRE", state: "ENERGY", density: -10, flammable: false },
       7: { name: "WOOD", state: "SOLID", density: 50, flammable: true },
+      8: { name: "STEAM", state: "ENERGY", density: -5, flammable: false },
+      9: { name: "SPOUT", state: "SOLID", density: 1000, flammable: false },
+      10: { name: "DRAIN", state: "SOLID", density: 1001, flammable: false },
     };
+  }
+
+  // Prevents canvas size changes from wiping user simulation states
+  resize(newWidth, newHeight) {
+    const oldWidth = this.width;
+    const oldHeight = this.height;
+    const oldGrid = this.currentGrid;
+    const oldVariantGrid = this.currentVariantGrid;
+
+    this.width = newWidth;
+    this.height = newHeight;
+    this.totalCells = newWidth * newHeight;
+
+    this.currentGrid = new Uint8Array(this.totalCells);
+    this.nextGrid = new Uint8Array(this.totalCells);
+    this.currentVariantGrid = new Uint8Array(this.totalCells);
+    this.nextVariantGrid = new Uint8Array(this.totalCells);
+
+    // Repopulate older frame coordinates into the new layout system footprint
+    for (let y = 0; y < Math.min(oldHeight, newHeight); y++) {
+      for (let x = 0; x < Math.min(oldWidth, newWidth); x++) {
+        const oldIdx = y * oldWidth + x;
+        const newIdx = y * newWidth + x;
+        this.currentGrid[newIdx] = oldGrid[oldIdx];
+        this.currentVariantGrid[newIdx] = oldVariantGrid[oldIdx];
+      }
+    }
   }
 
   clear() {
@@ -39,10 +69,9 @@ export class SandEngine {
     }
   }
 
-  // Helper to safely fetch element properties at grid coordinates
   getProp(x, y, propName) {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
-      return propName === "density" ? 999 : null; // Out of bounds acts like bedrock
+      return propName === "density" ? 999 : null;
     }
     const type = this.currentGrid[y * this.width + x];
     return this.PROPERTIES[type][propName];
@@ -67,15 +96,46 @@ export class SandEngine {
 
         if (type === 0) continue;
 
+        // --- STEAM LIFE CYCLE DISPERSION ---
+        if (type === 8) {
+          if (Math.random() > 0.96) {
+            currentGrid[idx] = 0; // Slowly condenses back into background atmosphere
+            continue;
+          }
+        }
+
+        // --- AUTOMATED NODE KINETICS ---
+        if (type === 9) {
+          // SPOUT node infinitely generates water below it
+          if (y + 1 < height) {
+            const bIdx = (y + 1) * width + x;
+            if (currentGrid[bIdx] === 0) {
+              currentGrid[bIdx] = 2;
+              currentVariantGrid[bIdx] = Math.floor(Math.random() * 4);
+            }
+          }
+        }
+        if (type === 10) {
+          // DRAIN node completely vaporizes elements dropping onto it
+          if (y - 1 >= 0) {
+            const aIdx = (y - 1) * width + x;
+            if (
+              currentGrid[aIdx] !== 0 &&
+              currentGrid[aIdx] !== 10 &&
+              currentGrid[aIdx] !== 3
+            ) {
+              currentGrid[aIdx] = 0;
+            }
+          }
+        }
+
         // --- FIRE & COMBUSTION KINETICS ---
         if (type === 6) {
-          // Fire naturally burns out over time
           if (Math.random() > 0.88) {
-            currentGrid[idx] = 0; // Dissipate to air before physics runs
+            currentGrid[idx] = 0;
             continue;
           }
 
-          // Scan adjacent vectors for chemical reactions
           const neighbors = [
             { nx: x, ny: y - 1 },
             { nx: x, ny: y + 1 },
@@ -88,15 +148,14 @@ export class SandEngine {
               const nIdx = n.ny * width + n.nx;
               const nType = currentGrid[nIdx];
 
-              // Reaction: Fire + Fuel (Wood/Oil) -> Exothermic Ignition Cascade
               if (this.PROPERTIES[nType].flammable) {
-                currentGrid[nIdx] = 6; // Catch fire
+                currentGrid[nIdx] = 6;
                 currentVariantGrid[nIdx] = Math.floor(Math.random() * 4);
               }
-              // Reaction: Fire + Water -> Thermal Extinguishment / Evaporation
+              // REACTION REMAP: Fire + Water -> Evaporates into interactive STEAM vapor cloud
               else if (nType === 2) {
-                currentGrid[idx] = 0; // Fire dies
-                currentGrid[nIdx] = 0; // Water evaporates into steam (Air)
+                currentGrid[idx] = 0;
+                currentGrid[nIdx] = 8; // Boil water cell into steam
                 break;
               }
             }
@@ -117,18 +176,14 @@ export class SandEngine {
               const nIdx = n.ny * width + n.nx;
               const nType = currentGrid[nIdx];
 
-              // Reaction: Acid + Matter (Sand/Wood/Walls) -> Corrosive Destruction
               if (nType === 1 || nType === 7 || nType === 3) {
-                currentGrid[nIdx] = 0; // Melt target cell down to empty space
-                // Acid spends its chemical potential energy and turns into inert gas
+                currentGrid[nIdx] = 0;
                 if (Math.random() > 0.4) {
-                  currentGrid[idx] = 0;
+                  currentGrid[idx] = 8; // Chemical decomposition converts acid to steam fumes
                   break;
                 }
-              }
-              // Reaction: Acid + Water -> Exothermic Neutralization / Dilution
-              else if (nType === 2) {
-                currentGrid[idx] = 2; // Acid is diluted into standard water
+              } else if (nType === 2) {
+                currentGrid[idx] = 2;
                 break;
               }
             }
@@ -137,11 +192,12 @@ export class SandEngine {
       }
     }
 
-    // Preserve permanent structural unburned components into the frame scratchpad
+    // Preserve permanent structural architectures into execution matrix buffers
     for (let i = 0; i < currentGrid.length; i++) {
-      if (currentGrid[i] === 3 || currentGrid[i] === 7) {
+      const gType = currentGrid[i];
+      if (gType === 3 || gType === 7 || gType === 9 || gType === 10) {
         if (nextGrid[i] === 0) {
-          nextGrid[i] = currentGrid[i];
+          nextGrid[i] = gType;
           nextVariantGrid[i] = currentVariantGrid[i];
         }
       }
@@ -156,16 +212,15 @@ export class SandEngine {
         const idx = y * width + x;
         const type = currentGrid[idx];
 
-        // Skip background air, static walls, or wood chunks that haven't been modified
-        if (type === 0 || type === 3 || type === 7) continue;
-        if (nextGrid[idx] !== 0) continue; // Cell space already spoken for by a density swap
+        // Skip background air, static architecture nodes, or frozen entities
+        if (type === 0 || type === 3 || type === 7 || type === 9 || type === 10)
+          continue;
+        if (nextGrid[idx] !== 0) continue;
 
         const state = this.PROPERTIES[type].state;
         const currentDensity = this.PROPERTIES[type].density;
 
         let moved = false;
-
-        // Systemic Gravitational Movement Matrix
 
         // --- CATEGORY A: DOWNWARD SETTLING PARTICLES (Powders & Liquids) ---
         if (state === "POWDER" || state === "LIQUID") {
@@ -174,7 +229,6 @@ export class SandEngine {
           const bottomRight = (y + 1) * width + (x + 1);
 
           if (y + 1 < height) {
-            // A1. Pure Downward Sinking Check via Density Differential
             const targetType =
               nextGrid[below] === 0 ? currentGrid[below] : nextGrid[below];
             if (currentDensity > this.PROPERTIES[targetType].density) {
@@ -195,7 +249,6 @@ export class SandEngine {
               moved = true;
             }
 
-            // A2. Diagonal Settling Sinks
             if (!moved) {
               const slideLeftFirst = Math.random() > 0.5;
               const sides = slideLeftFirst
@@ -239,9 +292,8 @@ export class SandEngine {
             }
           }
 
-          // A3. Lateral Liquid Dispersion (Only liquids spread flat across matching density bounds)
           if (!moved && state === "LIQUID") {
-            const dispersionRate = type === 5 ? 2 : 5; // Acid moves slower/more viscous than oil/water
+            const dispersionRate = type === 5 ? 2 : 5;
             let bestX = -1;
             let foundLedge = false;
             const flowLeftFirst = Math.random() > 0.5;
@@ -256,12 +308,10 @@ export class SandEngine {
                 const checkType =
                   nextGrid[nIdx] === 0 ? currentGrid[nIdx] : nextGrid[nIdx];
 
-                // Blocked if horizontal path is more dense
                 if (this.PROPERTIES[checkType].density >= currentDensity) break;
 
                 bestX = nx;
 
-                // Priority Trigger: Did the fluid find an edge to drop down through?
                 if (y + 1 < height) {
                   const nBelow = (y + 1) * width + nx;
                   const belowType =
@@ -300,14 +350,13 @@ export class SandEngine {
           }
         }
 
-        // --- CATEGORY B: UPWARD FLOATERS (Gases/Thermal Energy Networks like Fire) ---
+        // --- CATEGORY B: UPWARD FLOATERS (Gases/Thermal Energy Networks like Fire & Steam) ---
         else if (state === "ENERGY") {
           const above = (y - 1) * width + x;
           const topLeft = (y - 1) * width + (x - 1);
           const topRight = (y - 1) * width + (x + 1);
 
           if (y - 1 >= 0) {
-            // B1. Direct Upward Floating Action Check
             const targetType =
               nextGrid[above] === 0 ? currentGrid[above] : nextGrid[above];
             if (
@@ -319,7 +368,6 @@ export class SandEngine {
               moved = true;
             }
 
-            // B2. Diagonal Rising Sifts
             if (!moved) {
               const floatLeftFirst = Math.random() > 0.5;
               const upperSides = floatLeftFirst
@@ -352,7 +400,6 @@ export class SandEngine {
             }
           }
 
-          // B3. Micro Gas Drift (Simulates erratic fire flickering)
           if (!moved) {
             const driftX = x + (Math.random() > 0.5 ? 1 : -1);
             if (driftX >= 0 && driftX < width) {
@@ -370,7 +417,6 @@ export class SandEngine {
           }
         }
 
-        // --- ESCAPE PATHWAY SAFETY NET ---
         if (!moved) {
           if (nextGrid[idx] === 0) {
             nextGrid[idx] = type;
@@ -463,7 +509,7 @@ export class SandEngine {
               b = 175;
             }
             break;
-          case 4: // Oil (Amber slick / petrol hues)
+          case 4: // Oil
             if (variant === 0) {
               r = 120;
               g = 53;
@@ -482,7 +528,7 @@ export class SandEngine {
               b = 11;
             }
             break;
-          case 5: // Acid (Corrosive Bioluminescent Toxic Greens)
+          case 5: // Acid
             if (variant === 0) {
               r = 34;
               g = 197;
@@ -501,29 +547,26 @@ export class SandEngine {
               b = 61;
             }
             break;
-          case 6: // Fire (Incandescent Flickering Plume)
+          case 6: // Fire
             if (variant === 0) {
               r = 239;
               g = 68;
               b = 68;
-            } // Red
-            else if (variant === 1) {
+            } else if (variant === 1) {
               r = 249;
               g = 115;
               b = 22;
-            } // Orange
-            else if (variant === 2) {
+            } else if (variant === 2) {
               r = 234;
               g = 179;
               b = 8;
-            } // Yellow
-            else {
+            } else {
               r = 248;
               g = 113;
               b = 113;
-            } // Flare
+            }
             break;
-          case 7: // Wood (Fibrous Bark Browns)
+          case 7: // Wood
             if (variant === 0) {
               r = 120;
               g = 74;
@@ -542,6 +585,35 @@ export class SandEngine {
               b = 32;
             }
             break;
+          case 8: // Steam (Translucent cloud vapors)
+            if (variant === 0) {
+              r = 203;
+              g = 213;
+              b = 225;
+            } else if (variant === 1) {
+              r = 226;
+              g = 232;
+              b = 240;
+            } else if (variant === 2) {
+              r = 148;
+              g = 163;
+              b = 184;
+            } else {
+              r = 180;
+              g = 185;
+              b = 200;
+            }
+            break;
+          case 9: // Spout (Cyan mechanical node)
+            r = 6;
+            g = 182;
+            b = 212;
+            break;
+          case 10: // Drain (Dark void violet node)
+            r = 109;
+            g = 40;
+            b = 217;
+            break;
         }
 
         for (let cy = 0; cy < cellSize; cy++) {
@@ -552,7 +624,7 @@ export class SandEngine {
             data[pixelIdx] = r;
             data[pixelIdx + 1] = g;
             data[pixelIdx + 2] = b;
-            data[pixelIdx + 3] = 255;
+            data[pixelIdx + 3] = cellType === 8 ? 140 : 255; // Render steam as transparent vapor clouds
           }
         }
       }
