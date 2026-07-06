@@ -15,9 +15,10 @@ export default function SandControls({
     ["FIRE", 6, "text-red-400 border-red-500/20 bg-red-500/5"],
     ["WOOD", 7, "text-amber-700 border-amber-800/20 bg-amber-800/5"],
     ["WALL", 3, "text-slate-400 border-slate-500/20 bg-slate-500/5"],
-    ["STEAM", 8, "text-slate-300 border-slate-400/20 bg-slate-400/5"],
     ["SPOUT", 9, "text-cyan-400 border-cyan-500/20 bg-cyan-500/5"],
     ["DRAIN", 10, "text-violet-400 border-violet-500/20 bg-violet-500/5"],
+    ["CRUST", 11, "text-stone-400 border-stone-500/20 bg-stone-500/5"],
+    ["MAGMA", 12, "text-orange-500 border-orange-500/20 bg-orange-500/5"],
     ["ERASER", 0, "text-rose-400 border-rose-500/20 bg-rose-500/5"],
   ];
 

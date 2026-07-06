@@ -23,6 +23,9 @@ export class SandEngine {
       8: { name: "STEAM", state: "ENERGY", density: -5, flammable: false },
       9: { name: "SPOUT", state: "SOLID", density: 1000, flammable: false },
       10: { name: "DRAIN", state: "SOLID", density: 1001, flammable: false },
+      11: { name: "CRUST", state: "SOLID", density: 80, flammable: false },
+      12: { name: "MAGMA", state: "LIQUID", density: 70, flammable: false },
+      13: { name: "VOLCANIC_GAS", state: "ENERGY", density: -50, flammable: false },
     };
   }
 
@@ -95,6 +98,111 @@ export class SandEngine {
         const type = currentGrid[idx];
 
         if (type === 0) continue;
+
+        // --- GEOLOGICAL VOLCANIC KINETICS ---
+        if (type === 12) {
+          // MAGMA behavior
+          // Rule A: Spontaneously release highly buoyant volcanic gas bubbles deep inside magma pools
+          if (Math.random() > 0.996) {
+            const upwardIdx = (y - 1) * width + x;
+            if (y - 1 >= 0 && currentGrid[upwardIdx] === 12) {
+              currentGrid[upwardIdx] = 13; // Exsolve into gas
+            }
+          }
+
+          // Rule B: Thermal Conduction - Magma melts neighboring solid crust rock
+          const neighbors = [
+            { nx: x, ny: y - 1 },
+            { nx: x, ny: y + 1 },
+            { nx: x - 1, ny: y },
+            { nx: x + 1, ny: y },
+          ];
+          for (let n of neighbors) {
+            if (n.nx >= 0 && n.nx < width && n.ny >= 0 && n.ny < height) {
+              const nIdx = n.ny * width + n.nx;
+              if (currentGrid[nIdx] === 11 && Math.random() > 0.995) {
+                currentGrid[nIdx] = 12; // Melt solid crust into liquid magma
+                currentVariantGrid[nIdx] = Math.floor(Math.random() * 4);
+              }
+            }
+          }
+        }
+
+        if (type === 13) {
+          // VOLCANIC_GAS behavior
+          const aboveIdx = (y - 1) * width + x;
+          let isBlocked = false;
+
+          if (y - 1 >= 0) {
+            const aboveType = currentGrid[aboveIdx];
+            // Gas is trapped if crust or heavy structures block its upward ascent
+            if (aboveType === 11 || aboveType === 3) {
+              isBlocked = true;
+            }
+          }
+
+          if (isBlocked) {
+            // 1. ACCUMULATE PRESSURE: Use variant values as an internal tick tracker
+            currentVariantGrid[idx] += 1;
+
+            // 2. THE CRITICAL BLOWOUT: Once pressure builds too high, trigger a geological explosion
+            if (currentVariantGrid[idx] > 35) {
+              currentGrid[idx] = 0; // The gas cell bursts into empty atmosphere space
+
+              const blastRadius = 3; // Structural destruction zone
+              for (let dy = -blastRadius; dy <= 1; dy++) {
+                for (let dx = -blastRadius; dx <= blastRadius; dx++) {
+                  const bx = x + dx;
+                  const by = y + dy;
+
+                  if (bx >= 0 && bx < width && by >= 0 && by < height) {
+                    const bIdx = by * width + bx;
+                    const bType = currentGrid[bIdx];
+
+                    // Shatter solid rock crust above into falling volcanic ash/debris rubble (SAND)
+                    if (bType === 11) {
+                      currentGrid[bIdx] = Math.random() > 0.5 ? 0 : 1;
+                      currentVariantGrid[bIdx] = Math.floor(Math.random() * 4);
+                    }
+                    // Fling heavy Magma pixels violently upward into high sky coordinates
+                    else if (bType === 12) {
+                      const launchDistance = Math.floor(Math.random() * 15 + 8);
+                      const launchY = by - launchDistance;
+                      if (launchY >= 0) {
+                        const launchIdx = launchY * width + bx;
+                        if (currentGrid[launchIdx] === 0) {
+                          currentGrid[launchIdx] = 12; // Teleport magma upward to mimic ballistic velocity
+                          currentVariantGrid[launchIdx] = Math.floor(
+                            Math.random() * 4,
+                          );
+                        }
+                      }
+                      currentGrid[bIdx] = 0; // Vaporize the original slot to clear path pressure
+                    }
+                  }
+                }
+              }
+              continue; // End frame calculation early for this exploded particle
+            }
+          } else {
+            // If not blocked, naturally decay built-up pressure so free bubbles don't randomly pop
+            if (currentVariantGrid[idx] > 0) {
+              currentVariantGrid[idx]--;
+            }
+
+            // 3. STEADY SURFACE VENTING: If it naturally breaks free into open AIR
+            if (y - 1 >= 0 && currentGrid[aboveIdx] === 0) {
+              currentGrid[idx] = 0; // Safely dissolve gas bubble
+              const belowIdx = (y + 1) * width + x;
+              // Throw a tiny splat of lava upwards to mimic boiling magma surface bubbles
+              if (y + 1 < height && currentGrid[belowIdx] === 12) {
+                currentGrid[aboveIdx] = 12;
+                currentGrid[belowIdx] = 0;
+              }
+              continue;
+            }
+          }
+        }
 
         // --- STEAM LIFE CYCLE DISPERSION ---
         if (type === 8) {
@@ -195,7 +303,13 @@ export class SandEngine {
     // Preserve permanent structural architectures into execution matrix buffers
     for (let i = 0; i < currentGrid.length; i++) {
       const gType = currentGrid[i];
-      if (gType === 3 || gType === 7 || gType === 9 || gType === 10) {
+      if (
+        gType === 3 ||
+        gType === 7 ||
+        gType === 9 ||
+        gType === 10 ||
+        gType === 11
+      ) {
         if (nextGrid[i] === 0) {
           nextGrid[i] = gType;
           nextVariantGrid[i] = currentVariantGrid[i];
@@ -613,6 +727,58 @@ export class SandEngine {
             r = 109;
             g = 40;
             b = 217;
+            break;
+          case 11: // Crust (Dark volcanic igneous rock)
+            if (variant === 0) {
+              r = 55;
+              g = 65;
+              b = 81;
+            } else if (variant === 1) {
+              r = 75;
+              g = 85;
+              b = 99;
+            } else {
+              r = 43;
+              g = 51;
+              b = 64;
+            }
+            break;
+          case 12: // Magma (Incandescent glowing core molten rock)
+            if (variant === 0) {
+              r = 249;
+              g = 115;
+              b = 22;
+            } // Safety Orange
+            else if (variant === 1) {
+              r = 239;
+              g = 68;
+              b = 68;
+            } // Hot Red
+            else if (variant === 2) {
+              r = 254;
+              g = 240;
+              b = 138;
+            } // Yellow Core Heat
+            else {
+              r = 194;
+              g = 65;
+              b = 12;
+            }
+            break;
+          case 13: // Volcanic Gas / Eruption Smoke
+            if (variant === 0) {
+              r = 75;
+              g = 75;
+              b = 90;
+            } else if (variant === 1) {
+              r = 100;
+              g = 100;
+              b = 115;
+            } else {
+              r = 50;
+              g = 50;
+              b = 65;
+            }
             break;
         }
 
