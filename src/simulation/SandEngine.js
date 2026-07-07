@@ -106,29 +106,53 @@ export class SandEngine {
 
         // --- GEOLOGICAL VOLCANIC KINETICS ---
         if (type === 12) {
-          // MAGMA behavior
+          // Magma ID = 12
+
           // Rule A: Spontaneously release highly buoyant volcanic gas bubbles deep inside magma pools
           if (Math.random() > 0.994) {
             const upwardIdx = (y - 1) * width + x;
             if (y - 1 >= 0 && currentGrid[upwardIdx] === 12) {
-              currentGrid[upwardIdx] = 13; // Exsolve into gas inside current frame
+              currentGrid[upwardIdx] = 13;
               currentVariantGrid[upwardIdx] = 0;
             }
           }
 
-          // Rule B: Thermal Conduction - Magma melts neighboring solid crust rock
+          // Define neighboring check spaces (Up, Down, Left, Right)
           const neighbors = [
             { nx: x, ny: y - 1 },
             { nx: x, ny: y + 1 },
             { nx: x - 1, ny: y },
             { nx: x + 1, ny: y },
           ];
+
           for (let n of neighbors) {
             if (n.nx >= 0 && n.nx < width && n.ny >= 0 && n.ny < height) {
               const nIdx = n.ny * width + n.nx;
-              if (currentGrid[nIdx] === 11 && Math.random() > 0.999) {
+              const nType = currentGrid[nIdx];
+
+              // Rule B: Thermal Conduction - Magma melts neighboring solid crust rock
+              if (nType === 11 && Math.random() > 0.999) {
                 currentGrid[nIdx] = 12; // Melt solid crust into liquid magma
                 currentVariantGrid[nIdx] = Math.floor(Math.random() * 4);
+              }
+
+              // Obsidian Quenching - Magma meets Water
+              else if (nType === 2) {
+                currentGrid[idx] = 11; // Turn this magma pixel into solid CRUST (Obsidian)
+                currentGrid[nIdx] = 8; // Flash the water pixel into STEAM
+                currentVariantGrid[idx] = Math.floor(Math.random() * 3);
+                currentVariantGrid[nIdx] = Math.floor(Math.random() * 4);
+                break; // Break loop early since this magma cell has solidified
+              }
+
+              // Intense Combustion - Magma incinerates WOOD (Type 7)
+              else if (nType === 7) {
+                if (Math.random() > 0.4) {
+                  currentGrid[nIdx] = 6; // Turn wood into FIRE (Type 6)
+                  currentVariantGrid[nIdx] = Math.floor(Math.random() * 4);
+                } else {
+                  currentGrid[nIdx] = 0; // Completely disintegrate to air/ash
+                }
               }
             }
           }
@@ -376,7 +400,12 @@ export class SandEngine {
           if (y + 1 < height) {
             const targetType =
               nextGrid[below] === 0 ? currentGrid[below] : nextGrid[below];
-            if (currentDensity > this.PROPERTIES[targetType].density) {
+
+            // Do not displace solid objects downward
+            if (
+              this.PROPERTIES[targetType].state !== "SOLID" &&
+              currentDensity > this.PROPERTIES[targetType].density
+            ) {
               const prevOccupantType =
                 nextGrid[below] === 0 ? currentGrid[below] : nextGrid[below];
               const prevOccupantVariant =
@@ -412,7 +441,12 @@ export class SandEngine {
                     nextGrid[side.idx] === 0
                       ? currentGrid[side.idx]
                       : nextGrid[side.idx];
-                  if (currentDensity > this.PROPERTIES[tType].density) {
+
+                  // Do not displace solid objects diagonally
+                  if (
+                    this.PROPERTIES[tType].state !== "SOLID" &&
+                    currentDensity > this.PROPERTIES[tType].density
+                  ) {
                     const targetType =
                       nextGrid[side.idx] === 0
                         ? currentGrid[side.idx]
@@ -454,7 +488,12 @@ export class SandEngine {
                 const checkType =
                   nextGrid[nIdx] === 0 ? currentGrid[nIdx] : nextGrid[nIdx];
 
-                if (this.PROPERTIES[checkType].density >= currentDensity) break;
+                // Fluids cannot push sideways into solid architectures
+                if (
+                  this.PROPERTIES[checkType].state === "SOLID" ||
+                  this.PROPERTIES[checkType].density >= currentDensity
+                )
+                  break;
 
                 bestX = nx;
 
