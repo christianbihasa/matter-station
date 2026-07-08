@@ -25,12 +25,7 @@ export class SandEngine {
       10: { name: "DRAIN", state: "SOLID", density: 1001, flammable: false },
       11: { name: "CRUST", state: "SOLID", density: 80, flammable: false },
       12: { name: "MAGMA", state: "LIQUID", density: 70, flammable: false },
-      13: {
-        name: "VOLCANIC_GAS",
-        state: "ENERGY",
-        density: -50,
-        flammable: false,
-      },
+      13: { name: "VOLCANIC_GAS", state: "ENERGY", density: -50, flammable: false },
     };
   }
 
